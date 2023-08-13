@@ -32,51 +32,20 @@
  * these update operations.
  */
 
-/* S-Tree uses hints to decide whether to perform a balancing operation or not.
- * Hints are similar to AVL-trees' height property, but they are not
- * required to be absolutely accurate. A hint provides an approximation
- * of the longest chain of nodes under the node to which the hint is attached.
- */
-struct st_node
-{
-    short hint;
-    struct st_node *parent;
-    struct st_node *left, *right;
-};
 
-struct st_root
-{
-    struct st_node *root;
-};
+#include "s_tree.h"
+/* Test program */
 
-enum st_dir
-{
-    LEFT,
-    RIGHT
-};
+#include <assert.h>
+#include <stddef.h> /* offsetof */
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
-#define st_root(r) (r->root)
-#define st_left(n) (n->left)
-#define st_right(n) (n->right)
-#define st_rparent(n) (st_right(n)->parent)
-#define st_lparent(n) (st_left(n)->parent)
-#define st_parent(n) (n->parent)
+#define container_of(ptr, type, member) \
+    ((type *)((char *)(ptr) - (offsetof(type, member))))
 
-struct st_node *st_first(struct st_node *n)
-{
-    if (!st_left(n))
-        return n;
-
-    return st_first(st_left(n));
-}
-
-struct st_node *st_last(struct st_node *n)
-{
-    if (!st_right(n))
-        return n;
-
-    return st_last(st_right(n));
-}
+#define treeint_entry(ptr) container_of(ptr, struct treeint, st_n)
 
 static inline void st_rotate_left(struct st_node *n)
 {
@@ -170,24 +139,8 @@ static inline void st_update(struct st_node **root, struct st_node *n)
         st_update(root, p);
 }
 
-/* The process of insertion is straightforward and follows the standard approach
- * used in any BST. After inserting a new node into the tree using conventional
- * BST insertion techniques, an update operation is invoked on the newly
- * inserted node.
- */
-void st_insert(struct st_node **root,
-               struct st_node *p,
-               struct st_node *n,
-               enum st_dir d)
-{
-    if (d == LEFT)
-        st_left(p) = n;
-    else
-        st_right(p) = n;
 
-    st_parent(n) = p;
-    st_update(root, n);
-}
+
 
 static inline void st_replace_right(struct st_node *n, struct st_node *r)
 {
@@ -253,22 +206,21 @@ static inline void st_replace_left(struct st_node *n, struct st_node *l)
         st_rparent(n) = l;
 }
 
-/* The process of deletion in this tree structure is relatively more intricate,
- * although it shares similarities with deletion methods employed in other BST.
- * When removing a node, if the node to be deleted has a right child, the
- * deletion process entails replacing the node to be removed with the first node
- * encountered in the right subtree. Following this replacement, an update
- * operation is invoked on the right child of the newly inserted node.
- *
- * Similarly, if the node to be deleted does not have a right child, the
- * replacement process involves utilizing the first node found in the left
- * subtree. Subsequently, an update operation is called on the left child of th
- * replacement node.
- *
- * In scenarios where the node to be deleted has no children (neither left nor
- * right), it can be directly removed from the tree, and an update operation is
- * invoked on the parent node of the deleted node.
- */
+
+void st_insert(struct st_node **root,
+               struct st_node *p,
+               struct st_node *n,
+               enum st_dir d)
+{
+    if (d == LEFT)
+        st_left(p) = n;
+    else
+        st_right(p) = n;
+
+    st_parent(n) = p;
+    st_update(root, n);
+}
+
 void st_remove(struct st_node **root, struct st_node *del)
 {
     if (st_right(del))
@@ -311,19 +263,6 @@ void st_remove(struct st_node **root, struct st_node *del)
     st_update(root, parent);
 }
 
-/* Test program */
-
-#include <assert.h>
-#include <stddef.h> /* offsetof */
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-
-#define container_of(ptr, type, member) \
-    ((type *)((char *)(ptr) - (offsetof(type, member))))
-
-#define treeint_entry(ptr) container_of(ptr, struct treeint, st_n)
-
 struct treeint
 {
     int value;
@@ -336,28 +275,6 @@ int treeint_init()
 {
     tree = calloc(sizeof(struct st_root), 1);
     assert(tree);
-    return 0;
-}
-
-static void __treeint_destroy(struct st_node *n)
-{
-    if (st_left(n))
-        __treeint_destroy(st_left(n));
-
-    if (st_right(n))
-        __treeint_destroy(st_right(n));
-
-    struct treeint *i = treeint_entry(n);
-    free(i);
-}
-
-int treeint_destroy()
-{
-    assert(tree);
-    if (st_root(tree))
-        __treeint_destroy(st_root(tree));
-
-    free(tree);
     return 0;
 }
 
@@ -424,6 +341,28 @@ int treeint_remove(int a)
     return 0;
 }
 
+static void __treeint_destroy(struct st_node *n)
+{
+    if (st_left(n))
+        __treeint_destroy(st_left(n));
+
+    if (st_right(n))
+        __treeint_destroy(st_right(n));
+
+    struct treeint *i = treeint_entry(n);
+    free(i);
+}
+
+int treeint_destroy()
+{
+    assert(tree);
+    if (st_root(tree))
+        __treeint_destroy(st_root(tree));
+
+    free(tree);
+    return 0;
+}
+
 /* ascending order */
 static void __treeint_dump(struct st_node *n, int depth)
 {
@@ -442,6 +381,23 @@ void treeint_dump()
 {
     __treeint_dump(st_root(tree), 0);
 }
+
+struct st_node *st_first(struct st_node *n)
+{
+    if (!st_left(n))
+        return n;
+
+    return st_first(st_left(n));
+}
+
+struct st_node *st_last(struct st_node *n)
+{
+    if (!st_right(n))
+        return n;
+
+    return st_last(st_right(n));
+}
+
 
 int main()
 {
